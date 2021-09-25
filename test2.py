@@ -151,6 +151,18 @@ def run_with_numpy(data, row, cols):
         p.map(process_numpy, [(data, i) for i in range(cols)])
 
 
+# numpy related funcs
+def process_with_pandas(args):
+    data, index = args
+    x = data[index]
+    print(x[0])
+
+
+def run_with_pandas(data, row, cols):
+    with mp.Pool(5) as p:
+        p.map(process_with_pandas, [(data, i) for i in range(cols)])
+
+
 if __name__ == "__main__":
 
     # d = get_sample_data(10)
@@ -181,4 +193,4 @@ if __name__ == "__main__":
         print("run_with_numpy")  #
         data = get_numpy_array(rows)
         print(rows, data.nbytes)  #
-        run_timer(run_with_numpy)(data, rows, data.shape[0])  #
+        run_timer(run_with_numpy)(data, rows, data.shape[0])
