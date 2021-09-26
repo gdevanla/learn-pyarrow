@@ -75,6 +75,10 @@ def process_batch(args):
     batches, index = args
     # df = batches.to_pandas()
     values = batches[index]
+    if index % 2 == 0:
+        pc.sum(values)
+    else:
+        pc.sum(batches[index - 1])
     return psutil.Process(os.getpid()).memory_info().rss / 1e6
     # print("batch=", psutil.Process(os.getpid()).memory_info().rss)
     # print(values)
