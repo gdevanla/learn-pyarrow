@@ -36,11 +36,12 @@ def process_batch(args):
     batches, index = args
     values = batches[index]
     pc.sum(values)
+    return psutil.Process(os.getpid()).memory_info().rss
 
 
 def run_with_batch(data, row, cols):
     with mp.Pool(5) as p:
-        p.map(process_batch, [(data, i) for i in range(1, cols)])
+        return sum(p.map(process_batch, [(data, i) for i in range(1, cols)])) / cols
 
 
 def process_batch_arrow_file(args):
@@ -48,7 +49,7 @@ def process_batch_arrow_file(args):
     with pa.OSFile("/tmp/sample.arrow", "rb") as source:
         batches = pa.ipc.open_file(source).read_all()
         values = pc.sum(batches[index])
-        # print("batch=", psutil.Process(os.getpid()).memory_info().rss)
+        return psutil.Process(os.getpid()).memory_info().rss
 
 
 def run_with_batch_arrow_file(batch, cols):
@@ -57,7 +58,9 @@ def run_with_batch_arrow_file(batch, cols):
             writer.write_table(batch)
 
     with mp.Pool(5) as p:
-        p.map(process_batch_arrow_file, [(i,) for i in range(1, cols)])
+        return (
+            sum(p.map(process_batch_arrow_file, [(i,) for i in range(1, cols)])) / cols
+        )
 
 
 def process_batch_mapped(args):
@@ -66,7 +69,7 @@ def process_batch_mapped(args):
     with pa.memory_map("/tmp/sample.arrow", "r") as source:
         batches = pa.ipc.RecordBatchFileReader(source).read_all()
         values = pc.sum(batches[index])
-        print("batch_mapped=", psutil.Process(os.getpid()).memory_info().rss)
+        return psutil.Process(os.getpid()).memory_info().rss
 
 
 def run_with_batch_mapped(batch, cols):
@@ -75,7 +78,7 @@ def run_with_batch_mapped(batch, cols):
             writer.write_table(batch)
 
     with mp.Pool(5) as p:
-        p.map(process_batch_mapped, [(i,) for i in range(1, cols)])
+        return sum(p.map(process_batch_mapped, [(i,) for i in range(1, cols)])) / cols
 
 
 def capture_times_func(label, log_fp):
@@ -99,28 +102,40 @@ def run_test4():
     with open(filename, "w") as f:
         f.write(f"{header}\n")
 
+    memory_used = dict()
     for rows in (
         10_000,
         100_000,
         500_000,
         1_000_000,
-        2_000_000,
+        # 2_000_000,
     ):  # , (10000, 100), (100000, 100), (1000000, 100)):
 
+        print(f"Running for {rows=}")
         # df = get_sample_data(rows)
         table = pa.Table.from_batches([get_sample_data_arrow(rows)])
 
-        callback = capture_times_func(f"batch_{rows}_{200}", "/tmp/test1.txt")
-        run_timer(run_with_batch, callback)(table, rows, 200)
+        callback = capture_times_func(f"batch_{rows}_{200}", filename)
+        result = run_timer(run_with_batch, callback)(table, rows, 200)
+        memory_used[f"batch_{rows}_{200}"] = result
 
         callback = capture_times_func(f"arrow-file_{rows}_{200}", filename)
-        run_timer(run_with_batch_arrow_file, callback)(table, table.num_columns)
+        result = run_timer(run_with_batch_arrow_file, callback)(
+            table, table.num_columns
+        )
+        memory_used[f"arrow-file_{rows}_{200}"] = result
 
         callback = capture_times_func(f"mapped-arrow-file_{rows}_{200}", filename)  #
-        run_timer(run_with_batch_mapped, callback)(table, table.num_columns)
+        result = run_timer(run_with_batch_mapped, callback)(table, table.num_columns)
+        memory_used[f"mapped-arrow-file_{rows}_{200}"] = result
 
         del table
         # run_timer(run_with_batch_map_shared)(table, table.num_columns)
+
+    with open("/tmp/memory_test4.txt", "w") as f:
+        f.write(f"label,size\n")
+        for label, size in memory_used.items():
+            f.write(f"{label},{size}\n")
 
 
 if __name__ == "__main__":

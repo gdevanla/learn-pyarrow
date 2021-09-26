@@ -1,6 +1,7 @@
 import datetime
 import functools
 import multiprocessing as mp
+import os
 import sys
 import time
 from pprint import pprint
@@ -66,18 +67,21 @@ def process_buffer(args):
 
 def run_with_buffer(buf, rows, cols):
     with mp.Pool(5) as p:
-        p.map(process_buffer, [(buf, i) for i in range(cols)])
+        return sum(p.map(process_buffer, [(buf, i) for i in range(cols)])) / cols
 
 
 def process_batch(args):
     batches, index = args
     values = batches[index]
     pc.sum(values)
+    return psutil.Process(os.getpid()).memory_info().rss / 1e6
 
 
 def run_with_batch(batch, rows, cols):
     with mp.Pool(5) as p:
-        p.map(process_batch, [(batch, i) for i in range(1, cols - 1)])
+        return (
+            sum(p.map(process_batch, [(batch, i) for i in range(1, cols - 1)])) / cols
+        )
 
 
 # numpy related funcs
@@ -85,11 +89,12 @@ def process_numpy(args):
     data, index = args
     x = data[index]
     np.sum(x)
+    return psutil.Process(os.getpid()).memory_info().rss / 1e6
 
 
 def run_with_numpy(data, row, cols):
     with mp.Pool(5) as p:
-        p.map(process_numpy, [(data, i) for i in range(1, cols - 1)])
+        return sum(p.map(process_numpy, [(data, i) for i in range(1, cols - 1)])) / cols
 
 
 # numpy related funcs
@@ -101,7 +106,7 @@ def process_with_pandas(args):
 
 def run_with_pandas(data, row, cols):
     with mp.Pool(5) as p:
-        p.map(process_with_pandas, [(data, i) for i in range(cols)])
+        return sum(p.map(process_with_pandas, [(data, i) for i in range(cols)])) / cols
 
 
 def capture_times_func(label, log_fp):
@@ -129,9 +134,10 @@ def run_test2():
     # a = get_data_arrow(10)
     # b = get_batch(10)
 
+    memory_used = dict()
     for rows in (
-        10000,
-        100000,
+        # 10000,
+        # 100000,
         1000000,
         10000000,
         20000000,
@@ -141,17 +147,19 @@ def run_test2():
         batch = get_batch(rows)
         print(rows, batch.nbytes)
         callback = capture_times_func(f"batch_{rows}_3", filename)  #
-        run_timer(run_with_batch, callback)(batch, rows, batch.num_columns)
+        result = run_timer(run_with_batch, callback)(batch, rows, batch.num_columns)
+        memory_used[f"batch_{rows}_3"] = result
 
         #
         print("run_with_numpy")  #
         data = get_numpy_array(rows)
         print(rows, data.nbytes)
         callback = capture_times_func(f"numpy_{rows}_3", filename)  #
-        run_timer(
+        result = run_timer(
             run_with_numpy,
             callback,
         )(data, rows, data.shape[0])
+        memory_used[f"numpy_{rows}_3"] = result
 
         # using buffer is as good as using batch
         # data = get_batch(rows)
@@ -160,6 +168,10 @@ def run_test2():
         # print("run_with_buffer")
         # print(rows, buf.size)  #
         # run_timer(run_with_buffer)(buf, rows, batch.num_columns)
+    with open("/tmp/memory_test2.txt", "w") as f:
+        f.write(f"label,size\n")
+        for label, size in memory_used.items():
+            f.write(f"{label},{size}\n")
 
 
 if __name__ == "__main__":

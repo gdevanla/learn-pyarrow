@@ -1,6 +1,7 @@
 import datetime
 import functools
 import multiprocessing as mp
+import os
 import sys
 import time
 from pprint import pprint
@@ -55,11 +56,12 @@ def process_batch(args):
     batches, index = args
     values = batches[0][index]
     pc.sum(values)
+    return psutil.Process(os.getpid()).memory_info().rss / 1e6
 
 
 def run_with_batch(data, row, cols):
     with mp.Pool(5) as p:
-        p.map(process_batch, [(data, i) for i in range(cols)])
+        return sum(p.map(process_batch, [(data, i) for i in range(cols)])) / cols
 
 
 # numpy related funcs
@@ -67,11 +69,14 @@ def process_numpy(args):
     data, index = args
     x = np.sum(data[index])
     # print(psutil.Process(os.getpid()))
+    return psutil.Process(os.getpid()).memory_info().rss / 1e6
 
 
 def run_with_numpy(data, row, cols):
+    import math
+
     with mp.Pool(5) as p:
-        p.map(process_numpy, [(data, i) for i in range(cols)])
+        return sum(p.map(process_numpy, [(data, i) for i in range(cols)])) / cols
 
 
 def capture_times_func(label, log_fp):
@@ -94,6 +99,7 @@ def run_test1():
     with open("/tmp/test1.txt", "w") as f:
         f.write(f"{header}\n")
 
+    memory_used = dict()
     for r, c in ((100, 100), (10000, 100), (100000, 100), (1000000, 100)):
         rows = r
         cols = c
@@ -101,13 +107,15 @@ def run_test1():
         batch = get_batch(rows, cols)
         # print(r, c, batch.nbytes)
         callback = capture_times_func(f"batch_{rows}_{cols}", "/tmp/test1.txt")
-        run_timer(run_with_batch, callback)(batch, rows, cols)
+        result = run_timer(run_with_batch, callback)(batch, rows, cols)
+        memory_used[f"batch_{rows}_{cols}"] = result
 
         print("run_with_numpy")  #
         data = get_numpy_array(rows, cols)  #
         # print(r, c, data.nbytes)  #
         callback = capture_times_func(f"numpy_{rows}_{cols}", "/tmp/test1.txt")
-        run_timer(run_with_numpy, callback)(data, rows, cols)  #
+        result = run_timer(run_with_numpy, callback)(data, rows, cols)  #
+        memory_used[f"numpy_{rows}_{cols}"] = result
 
         # data = get_batch(rows, cols)  #
         # buf = get_sink(data)  #
@@ -116,6 +124,10 @@ def run_test1():
         # print(r, c, buf.size)  #
         # run_timer(run_with_buffer)(buf, rows, cols)  #
         #
+        with open("/tmp/memory_test1.txt", "w") as f:
+            f.write(f"label,size\n")
+            for label, size in memory_used.items():
+                f.write(f"{label},{size}\n")
 
 
 if __name__ == "__main__":

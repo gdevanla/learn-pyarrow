@@ -75,7 +75,7 @@ def process_batch(args):
     batches, index = args
     # df = batches.to_pandas()
     values = batches[index]
-    pc.sum(values)
+    return psutil.Process(os.getpid()).memory_info().rss / 1e6
     # print("batch=", psutil.Process(os.getpid()).memory_info().rss)
     # print(values)
     # print(values)
@@ -85,13 +85,14 @@ def process_batch(args):
 
 def run_with_batch(batch, cols):
     with mp.Pool(5) as p:
-        p.map(process_batch, [(batch, i) for i in range(cols)])
+        return sum(p.map(process_batch, [(batch, i) for i in range(cols)])) / cols
 
 
 def process_p2b2p(args):
     batches, index = args
     df = batches.to_pandas()
     df[str(index)].sum()
+    return psutil.Process(os.getpid()).memory_info().rss / 1e6
     # print("batch=", psutil.Process(os.getpid()).memory_info().rss)
     # print(values)
     # print(values)
@@ -102,7 +103,7 @@ def process_p2b2p(args):
 def run_with_p2b2p(df, rows, cols):
     batch = pa.Table.from_pandas(df, preserve_index=False).combine_chunks()
     with mp.Pool(5) as p:
-        p.map(process_p2b2p, [(batch, i) for i in range(cols)])
+        return sum(p.map(process_p2b2p, [(batch, i) for i in range(cols)])) / cols
 
 
 # numpy related funcs
@@ -110,13 +111,14 @@ def process_with_pandas(args):
     data, index = args
     x = data[index]
     x.sum()
+    return psutil.Process(os.getpid()).memory_info().rss / 1e6
     # print("pandas=", psutil.Process(os.getpid()).memory_info().rss)
     # print(index, x[0])
 
 
 def run_with_pandas(data, row, cols):
     with mp.Pool(5) as p:
-        p.map(process_with_pandas, [(data, i) for i in range(cols)])
+        return sum(p.map(process_with_pandas, [(data, i) for i in range(cols)])) / cols
 
 
 def capture_times_func(label, log_fp):
@@ -131,7 +133,7 @@ def capture_times_func(label, log_fp):
 
 def run_with_static_frame(data, row, cols):
     with mp.Pool(5) as p:
-        p.map(process_with_pandas, [(data, i) for i in range(cols)])
+        return sum(p.map(process_with_pandas, [(data, i) for i in range(cols)])) / cols
 
 
 def run_test3():
@@ -145,6 +147,7 @@ def run_test3():
     with open(filename, "w") as f:
         f.write(f"{header}\n")
 
+    memory_used = dict()
     for rows in (
         10_000,
         50_000,
@@ -162,26 +165,35 @@ def run_test3():
         table = pa.Table.from_pandas(df, preserve_index=False).combine_chunks()
         print(rows, table.nbytes)
         callback = capture_times_func(f"batch_{rows}_3", filename)  #
-        run_timer(run_with_batch, callback)(table, table.num_columns)
+        result = run_timer(run_with_batch, callback)(table, table.num_columns)
+        memory_used[f"batch_{rows}_3"] = result
 
         print("run_with_pandas")  #
         print(rows)  #
         callback = capture_times_func(f"pandas_{rows}_3", filename)  #
-        run_timer(run_with_pandas, callback)(df, rows, len(df.columns))  #
+        result = run_timer(run_with_pandas, callback)(df, rows, len(df.columns))  #
+        memory_used[f"pandas_{rows}_3"] = result
 
         print("run_with_pandas to batch to pandas")  #
         print(rows)  #
         callback = capture_times_func(
-            f"pandas_to_batch_to_pandas_{rows}_3", filename
+            f"pandas-to-batch-to-pandas_{rows}_3", filename
         )  #
-        run_timer(run_with_p2b2p, callback)(df, rows, len(df.columns))  #
+        result = run_timer(run_with_p2b2p, callback)(df, rows, len(df.columns))  #
+        memory_used[f"p2b2p_{rows}_3"] = result
 
         print("run_with_static_frame")  #
         print(rows)  #
-        callback = capture_times_func(f"staticframe_{rows}_3", "/tmp/test3.txt")  #
-        run_timer(run_with_static_frame, callback)(
+        callback = capture_times_func(f"staticframe_{rows}_3", filename)  #
+        result = run_timer(run_with_static_frame, callback)(
             sf.Frame.from_pandas(df), rows, len(df.columns)
         )  #
+        memory_used[f"static_{rows}_3"] = result
+
+    with open("/tmp/memory_test3.txt", "w") as f:
+        f.write(f"label,size\n")
+        for label, size in memory_used.items():
+            f.write(f"{label},{size}\n")
 
 
 if __name__ == "__main__":
