@@ -151,7 +151,7 @@ def run_test3():
         100_000,
         # 500_000,
         # 750_000,  #
-        1_000_000,  #
+        # 1_000_000,  #
         # 2000000,  #  memory error from here on
         # 5000000  #
         # 100000000,
@@ -171,7 +171,9 @@ def run_test3():
 
         print("run_with_pandas to batch to pandas")  #
         print(rows)  #
-        callback = capture_times_func(f"pandas_{rows}_3", filename)  #
+        callback = capture_times_func(
+            f"pandas_to_batch_to_pandas_{rows}_3", filename
+        )  #
         run_timer(run_with_p2b2p, callback)(df, rows, len(df.columns))  #
 
         print("run_with_static_frame")  #

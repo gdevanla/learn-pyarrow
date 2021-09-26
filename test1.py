@@ -106,7 +106,7 @@ def run_test1():
         print("run_with_numpy")  #
         data = get_numpy_array(rows, cols)  #
         # print(r, c, data.nbytes)  #
-        callback = capture_times_func(f"batch_{rows}_{cols}", "/tmp/test1.txt")
+        callback = capture_times_func(f"numpy_{rows}_{cols}", "/tmp/test1.txt")
         run_timer(run_with_numpy, callback)(data, rows, cols)  #
 
         # data = get_batch(rows, cols)  #

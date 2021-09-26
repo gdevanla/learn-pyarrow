@@ -33,6 +33,17 @@ def get_sample_data_arrow(rows):
 
 
 def process_batch(args):
+    batches, index = args
+    values = batches[index]
+    pc.sum(values)
+
+
+def run_with_batch(data, row, cols):
+    with mp.Pool(5) as p:
+        p.map(process_batch, [(data, i) for i in range(1, cols)])
+
+
+def process_batch_arrow_file(args):
     index = args[0]
     with pa.OSFile("/tmp/sample.arrow", "rb") as source:
         batches = pa.ipc.open_file(source).read_all()
@@ -40,13 +51,13 @@ def process_batch(args):
         # print("batch=", psutil.Process(os.getpid()).memory_info().rss)
 
 
-def run_with_batch(batch, cols):
+def run_with_batch_arrow_file(batch, cols):
     with pa.OSFile("/tmp/sample.arrow", "wb") as sink:
         with pa.RecordBatchFileWriter(sink, batch.schema) as writer:
             writer.write_table(batch)
 
     with mp.Pool(5) as p:
-        p.map(process_batch, [(i,) for i in range(1, cols)])
+        p.map(process_batch_arrow_file, [(i,) for i in range(1, cols)])
 
 
 def process_batch_mapped(args):
@@ -89,20 +100,26 @@ def run_test4():
         f.write(f"{header}\n")
 
     for rows in (
-        10000,
-        100000,
-        1000000,
-        2000000,
+        10_000,
+        100_000,
+        500_000,
+        1_000_000,
+        2_000_000,
     ):  # , (10000, 100), (100000, 100), (1000000, 100)):
 
         # df = get_sample_data(rows)
         table = pa.Table.from_batches([get_sample_data_arrow(rows)])
-        callback = capture_times_func(f"arrow_file_{rows}_{200}", filename)
-        run_timer(run_with_batch, callback)(table, table.num_columns)
 
-        callback = capture_times_func(f"mapped_arrow_file_{rows}_{200}", filename)  #
+        callback = capture_times_func(f"batch_{rows}_{200}", "/tmp/test1.txt")
+        run_timer(run_with_batch, callback)(table, rows, 200)
+
+        callback = capture_times_func(f"arrow-file_{rows}_{200}", filename)
+        run_timer(run_with_batch_arrow_file, callback)(table, table.num_columns)
+
+        callback = capture_times_func(f"mapped-arrow-file_{rows}_{200}", filename)  #
         run_timer(run_with_batch_mapped, callback)(table, table.num_columns)
 
+        del table
         # run_timer(run_with_batch_map_shared)(table, table.num_columns)
 
 
