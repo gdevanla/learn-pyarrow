@@ -115,9 +115,9 @@ def run_test4():
         # df = get_sample_data(rows)
         table = pa.Table.from_batches([get_sample_data_arrow(rows)])
 
-        callback = capture_times_func(f"batch_{rows}_{200}", filename)
+        callback = capture_times_func(f"recordbatch_{rows}_{200}", filename)
         result = run_timer(run_with_batch, callback)(table, rows, 200)
-        memory_used[f"batch_{rows}_{200}"] = result
+        memory_used[f"recordbatch_{rows}_{200}"] = result
 
         callback = capture_times_func(f"arrow-file_{rows}_{200}", filename)
         result = run_timer(run_with_batch_arrow_file, callback)(

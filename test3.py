@@ -170,13 +170,13 @@ def run_test3():
         print(rows, table.nbytes)
         callback = capture_times_func(f"batch_{rows}_3", filename)  #
         result = run_timer(run_with_batch, callback)(table, table.num_columns)
-        memory_used[f"batch_{rows}_3"] = result
+        memory_used[f"recordbatch_{rows}_200"] = result
 
         print("run_with_pandas")  #
         print(rows)  #
         callback = capture_times_func(f"pandas_{rows}_3", filename)  #
         result = run_timer(run_with_pandas, callback)(df, rows, len(df.columns))  #
-        memory_used[f"pandas_{rows}_3"] = result
+        memory_used[f"pandas_{rows}_200"] = result
 
         print("run_with_pandas to batch to pandas")  #
         print(rows)  #
@@ -184,7 +184,7 @@ def run_test3():
             f"pandas-to-batch-to-pandas_{rows}_3", filename
         )  #
         result = run_timer(run_with_p2b2p, callback)(df, rows, len(df.columns))  #
-        memory_used[f"p2b2p_{rows}_3"] = result
+        memory_used[f"p2b2p_{rows}_200"] = result
 
         print("run_with_static_frame")  #
         print(rows)  #
@@ -192,7 +192,7 @@ def run_test3():
         result = run_timer(run_with_static_frame, callback)(
             sf.Frame.from_pandas(df), rows, len(df.columns)
         )  #
-        memory_used[f"static_{rows}_3"] = result
+        memory_used[f"static_{rows}_200"] = result
 
     with open("/tmp/memory_test3.txt", "w") as f:
         f.write(f"label,size\n")

@@ -146,9 +146,9 @@ def run_test2():
 
         batch = get_batch(rows)
         print(rows, batch.nbytes)
-        callback = capture_times_func(f"batch_{rows}_3", filename)  #
+        callback = capture_times_func(f"recordbatch_{rows}_3", filename)  #
         result = run_timer(run_with_batch, callback)(batch, rows, batch.num_columns)
-        memory_used[f"batch_{rows}_3"] = result
+        memory_used[f"recordbatch_{rows}_3"] = result
 
         #
         print("run_with_numpy")  #
