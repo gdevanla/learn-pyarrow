@@ -12,7 +12,7 @@ import pandas as pd
 import psutil
 import pyarrow as pa
 import pyarrow.compute as pc
-import ray
+# import ray
 
 from util import run_timer
 
@@ -30,6 +30,30 @@ def get_sample_data_arrow(rows):
     ]
     batch = pa.RecordBatch.from_arrays(data, names=[f"{x}" for x in range(len(data))])
     return batch
+
+def get_sample_data_numpy(rows):
+    return np.random.rand(rows, 200)
+
+
+
+
+def process_numpy_mapped(args):
+    index = args[0]
+
+    array = np.load("/tmp/sample.npy", mmap_mode='r')
+    values = np.sum(array[:, index])
+    return psutil.Process(os.getpid()).memory_info().rss
+
+
+def run_with_numpy_mapped(batch, cols):
+    np.save("/tmp/sample.npy", batch)
+
+    with mp.Pool(5) as p:
+        return sum(p.map(process_numpy_mapped, [(i,) for i in range(1, cols)])) / cols
+
+
+
+
 
 
 def process_batch(args):
@@ -81,6 +105,8 @@ def run_with_batch_mapped(batch, cols):
         return sum(p.map(process_batch_mapped, [(i,) for i in range(1, cols)])) / cols
 
 
+
+
 def capture_times_func(label, log_fp):
     def f(delta):
         with open(log_fp, "a") as f:
@@ -112,7 +138,13 @@ def run_test4():
     ):  # , (10000, 100), (100000, 100), (1000000, 100)):
 
         print(f"Running for {rows=}")
-        # df = get_sample_data(rows)
+
+        array = get_sample_data_numpy(rows)
+        callback = capture_times_func(f"numpy_memmap{rows}_{200}", filename)
+        result = run_timer(run_with_numpy_mapped, callback)(array, 200)
+        memory_used[f"numpy_memmap{rows}_{200}"] = result
+
+
         table = pa.Table.from_batches([get_sample_data_arrow(rows)])
 
         callback = capture_times_func(f"recordbatch_{rows}_{200}", filename)
